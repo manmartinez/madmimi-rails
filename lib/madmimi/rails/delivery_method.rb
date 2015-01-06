@@ -19,9 +19,15 @@ module Madmimi
           'subject' => mail.subject,
           'remove_unsubscribe' => true
         }
-        raw = mail.body.raw_source
+        if mail.parts.any?
+          raw = mail.html_part.body.raw_source
+        else
+          raw = mail.body.raw_source
+        end
         mimi = MadMimi.new(settings[:email], settings[:api_key])
-        mimi.send_html(options, raw)
+        result = mimi.send_html(options, raw)
+        ::Rails.logger.info "[INFO] sent email to Madmimi, mailing id is: #{result}"
+        result
       end
     end
   end
