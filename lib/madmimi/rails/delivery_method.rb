@@ -6,29 +6,48 @@ module Madmimi
 
       attr_accessor :settings
 
-      def initialize config = {}
+      def initialize(config = {})
         fail(InvalidOptions, "Missing configuration") if config[:email].nil? || config[:api_key].nil?
         self.settings = config
       end
 
-      def deliver! mail
-        options = {
-          'promotion_name' => mail.subject,
-          'recipients' => mail.to.join(','),
-          'from' => mail.from,
-          'subject' => mail.subject,
-          'remove_unsubscribe' => true
-        }
-        if mail.parts.any?
-          raw = mail.html_part.body.raw_source
-        else
-          raw = mail.body.raw_source
+      def deliver!(mail)
+        options = options_from_mail(mail)
+        raw = html_from_mail(mail)
+
+        mail.to.each do |recipient|
+          deliver_to_recipient(recipient, raw, options)
         end
-        mimi = MadMimi.new(settings[:email], settings[:api_key])
-        result = mimi.send_html(options, raw)
-        ::Rails.logger.info "[INFO] sent email to Madmimi, mailing id is: #{result}"
-        result
       end
+
+      protected
+
+        def mimi
+          @mimi ||= MadMimi.new(settings[:email], settings[:api_key])
+        end
+
+        def html_from_mail(mail)
+          if mail.parts.any?
+            mail.html_part.body.raw_source
+          else
+            mail.body.raw_source
+          end
+        end
+
+        def options_from_mail(mail)
+          {
+            'promotion_name' => mail['promotion'].try(:to_s) || mail.subject,
+            'from' => mail.from.join(','),
+            'subject' => mail.subject,
+            'remove_unsubscribe' => true
+          }
+        end
+
+        def deliver_to_recipient(recipient, raw_html, options)
+          options['recipients'] = recipient
+          result = mimi.send_html(options, raw_html)
+          ::Rails.logger.info "[INFO] sent email to Madmimi, mailing id is: #{result}"
+        end
     end
   end
 end
